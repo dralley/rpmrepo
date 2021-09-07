@@ -1,0 +1,4 @@
+click~=8.0
+humanfriendly~=10.0
+createrepo_c~=0.17.6
+aiohttp~=3.8

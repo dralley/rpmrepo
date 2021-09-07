@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "rpmrepo"
+version = "0.0.1"
+description = "A tool / library for working with RPM repository metadata"
+authors = ["Daniel Alley <dalley@redhat.com>"]
+license = "MPL-2.0"
+
+[tool.poetry.scripts]
+rpmrepo = "rpmrepo.cli:cli"
+
+[tool.poetry.dependencies]
+python = "^3.6"
+click = "^8.0.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^4.6"
+
+# [build-system]
+# requires = ["poetry_core>=1.2.0"]
+# build-backend = "poetry.core.masonry.api"
