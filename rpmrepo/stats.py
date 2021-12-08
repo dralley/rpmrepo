@@ -3,7 +3,7 @@ from pathlib import Path
 
 import createrepo_c as cr
 
-from rpmrepo.parse_metadata import MetadataParser
+from rpmrepo.metadata import MetadataParser
 
 
 def collect_repo_stats(repo_path: Path):

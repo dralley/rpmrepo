@@ -19,7 +19,8 @@ class MetadataParser:
     @staticmethod
     def from_repo(path):
         repomd_path = path / "repodata" / "repomd.xml"
-        assert repomd_path.exists()
+        if not repomd_path.exists():
+            raise FileNotFoundError("No repository found at the provided path.")
 
         repomd = cr.Repomd(str(repomd_path))
         metadata_files = {record.type: record for record in repomd.records}

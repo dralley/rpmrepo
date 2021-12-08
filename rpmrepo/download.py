@@ -271,7 +271,10 @@ class LocalRepoHandle:
 
         def verify_file_checksum(path, hasher, expected):
             with path.open(mode='rb') as f:
-                while chunk := f.read(8192):
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
                     hasher.update(chunk)
             digest = hasher.hexdigest()
             return digest == expected
@@ -335,4 +338,10 @@ def download_repo(url, destination, config=None, only_metadata=False):
                 print(str(e))  # TODO: better formatted error message
                 sys.exit(1)
 
-    asyncio.run(main())
+    if sys.version_info.minor == 6:
+        # 3.6
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+    else:
+        # 3.7+
+        asyncio.run(main())
