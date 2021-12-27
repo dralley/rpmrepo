@@ -1,0 +1,42 @@
+Name:           python3-rpmrepo
+Version:        {{{ git_dir_version }}}
+Release:        1%{?dist}
+Summary:        A library and CLI tool for working with RPM repositories.
+
+License:        GPLv2
+URL:            https://github.com/dralley/rpmrepo
+VCS:            {{{ git_dir_vcs }}}
+Source:         {{{ git_dir_pack }}}
+
+BuildArch:      noarch
+BuildRequires:  python3-devel python3-wheel pyproject-rpm-macros
+
+%description
+A library and CLI tool providing facilities for working with RPM repositories.
+
+%prep
+{{{ git_dir_setup_macro }}}
+# everything under the /test/ directory is "installed but not packaged"
+# https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/message/XOP2CNXLDNT5SRZ67DXPYRBXPLYCWUZ2/
+rm -r tests/
+
+%generate_buildrequires
+%pyproject_buildrequires
+
+%build
+%pyproject_wheel
+
+%install
+%pyproject_install
+%pyproject_save_files rpmrepo
+
+%check
+%pyproject_check_import
+
+%files -n python3-rpmrepo -f %{pyproject_files}
+%doc README.md
+%license LICENSE
+%{_bindir}/rpmrepo
+
+%changelog
+{{{ git_dir_changelog }}}
