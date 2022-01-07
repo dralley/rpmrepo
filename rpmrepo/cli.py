@@ -30,7 +30,7 @@ def cli():
 @click.option(
     '--tls-client-cert-key',
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help='Specify a TLS client key location (.pem, .key). Not needed if the cert file contains an embedded key.'
+    help='Specify a TLS client key location (.pem, .key). Not needed if the cert file (.pem) contains an embedded key.'
 )
 @click.option('--only-metadata', default=False, is_flag=True, help='Download metadata only')
 @click.option('--no-check-certificate', default=False, is_flag=True, help='Disable TLS server certificate verification')
@@ -64,13 +64,14 @@ def download(
 # @click.option('--strict', is_flag=True, help='Turn most warnings into errors')
 @click.command()
 @click.argument('path', required=False, type=click.Path())
-def check(path):
+@click.option('--errata-coverage-check', default=None, type=int, help='A unix timestamp - all packages built after this moment must be covered by an errata or will be returned as a warning.')
+def check(path, errata_coverage_check):
     # TODO:
     # * security mode - disallowed checksums (warning?)
     # * provide specific keys to verify against
 
     repo_path = Path(path) if path else Path(os.getcwd())
-    (warnings, errors) = check_repository_metadata(repo_path)
+    (warnings, errors) = check_repository_metadata(repo_path, errata_check=errata_coverage_check)
 
     for error in errors:
         click.secho("[ERROR] ", fg='bright_red', bold=True, nl=False)
@@ -81,6 +82,9 @@ def check(path):
         click.secho("[WARNING] ", fg='bright_yellow', bold=True, nl=False)
         click.secho(warning)
         # click.secho()
+
+    if not warnings and not errors:
+        click.secho("[OK]", fg='bright_green', bold=True)
 
     # TODO: decide which layer to manage error messages in (Wrapper types with str() or just passing strings around)
 
@@ -103,8 +107,14 @@ def stats(path, json_formatting):
         if "metadata_total_size" in stats:
             data.append(("Metadata total size:", format_size(stats["metadata_total_size"])))
 
+        if "main_metadata_total_size" in stats:
+            data.append(("└─ Main metadata total size:", format_size(stats["main_metadata_total_size"])))
+
         if "metadata_total_size_decompressed" in stats:
             data.append(("Metadata total size (decompressed):", format_size(stats["metadata_total_size_decompressed"])))
+
+        if "main_metadata_total_size_decompressed" in stats:
+            data.append(("└─ Main metadata total size (decompressed):", format_size(stats["main_metadata_total_size_decompressed"])))
 
         print()
         widths = [max(map(len, col)) for col in zip(*data)]

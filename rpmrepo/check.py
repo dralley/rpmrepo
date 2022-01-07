@@ -8,12 +8,31 @@ from rpmrepo.metadata import MetadataParser
 INSECURE_CHECKSUMS = {'md5', 'sha', 'sha1'}
 
 
-def check_repository_metadata(repo_path: Path):
+def check_repository_metadata(repo_path: Path, errata_check=None):
     warnings = []
     errors = []
 
     parser = MetadataParser.from_repo(repo_path)
     checksum_types_used = set()
+
+    packages_with_advisories = defaultdict(set)
+    packages_without_advisories = defaultdict(set)
+
+    def format_nevra(name, epoch, version, release, arch):
+        return "{name}-{epoch}{version}-{release}.{arch}".format(
+            name=name,
+            epoch=f"{epoch}:" if epoch else "0:",
+            version=version,
+            release=release,
+            arch=arch,
+        )
+
+    if errata_check:
+        for record in parser.advisories():
+            for collection in record.collections:
+                for package in collection.packages:
+                    nevra = format_nevra(package.name, package.epoch, package.version, package.release, package.arch)
+                    packages_with_advisories[package.name].add(nevra)
 
     for record in parser.repomd.records:
         checksum_types_used.add(record.checksum_type)
@@ -29,23 +48,36 @@ def check_repository_metadata(repo_path: Path):
             "Insecure checksum type '{}' is used for metadata".format(', '.join(insecure_checksums_used))
         )
     checksum_types_used = set()
-
     nevra_occurences = defaultdict(list)
+    package_occurrences = defaultdict(list)
 
     def package_cb(pkg):
         checksum_types_used.add(pkg.checksum_type)
         nevra_occurences[pkg.nevra()].append(pkg.pkgId)
+        package_occurrences[pkg.name].append(pkg)
 
         num_files = len(pkg.files)
         num_unique_files = len(set(pkg.files))
         if num_unique_files != num_files:
             errors.append(
-                "Package '{}' has duplicated 'file' entries: {} unique paths out of {} total.".format(
-                    pkg.nevra(), num_unique_files, num_files
+                "Package '{}' has duplicated 'file' entries: {} paths listed but only {} are unique.".format(
+                    pkg.nevra(), num_files, num_unique_files
                 )
             )
 
     warnings = parser.for_each_package(package_cb)
+
+    if errata_check:
+        for name, packages in package_occurrences.items():
+            packages.sort(key=lambda x: x.nevra())
+            for package in packages:
+                if package.time_build > errata_check and package.nevra() not in packages_with_advisories[name]:
+                    packages_without_advisories[name].add(package.nevra())
+
+        for name in sorted(list(packages_without_advisories.keys())):
+            packages = packages_without_advisories[name]
+            for package in packages:
+                warnings.append("Package '{}' is not covered by an errata.".format(package))
 
     insecure_checksums_used = checksum_types_used.intersection(INSECURE_CHECKSUMS)
     if insecure_checksums_used:

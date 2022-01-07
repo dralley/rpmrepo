@@ -28,6 +28,10 @@ class MetadataParser:
         parser._primary_xml_path = path / metadata_files["primary"].location_href
         parser._filelists_xml_path = path / metadata_files["filelists"].location_href
         parser._other_xml_path = path / metadata_files["other"].location_href
+
+        parser._updateinfo_path = None
+        if metadata_files.get("updateinfo"):
+            parser._updateinfo_path = path / metadata_files["updateinfo"].location_href
         parser.repomd = repomd
         return parser
 
@@ -39,6 +43,13 @@ class MetadataParser:
         parser._filelists_xml_path = filelists_xml_path
         parser._other_xml_path = other_xml_path
         return parser
+
+    def advisories(self):
+        """Get advisories"""
+        if not self._updateinfo_path:
+            return []
+        else:
+            return cr.UpdateInfo(str(self._updateinfo_path)).updates
 
     def count_packages(self):
         """Count the total number of packages."""

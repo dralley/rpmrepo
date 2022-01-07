@@ -41,7 +41,7 @@ class DownloadConfig:
     tls_client_cert: Optional[Path] = None
     tls_client_key: Optional[Path] = None
     tls_ca_cert: Optional[Path] = None
-    max_parallel_downloads: int = 10
+    max_parallel_downloads: int = 8
     max_mirror_tries: int = 0
     max_parallel_downloads_per_mirror: int = 5
 
@@ -101,8 +101,10 @@ class RepoDownloader:
         downloader.config = config
         return downloader
 
-    async def download_file(self, url, path):
+    async def download_file(self, url, path, allow_fail=False):
         async with self.session.get(url) as resp:
+            if allow_fail and resp.status in {403, 404}:
+                return
             resp.raise_for_status()
             with open(path, 'wb') as fd:
                 async for chunk in resp.content.iter_chunked(1024 * 1024):
@@ -110,16 +112,18 @@ class RepoDownloader:
 
     async def download_metadata(self, source, destination):
         repo_path = Path(destination)
-        repodata_path = Path(destination) / "repodata"
+        repodata_path = repo_path / "repodata"
         repodata_path.mkdir(parents=True, exist_ok=True)
         repomd_path = repodata_path / "repomd.xml"
 
         repodata_url = urljoin(source, "repodata/")
         repomd_url = urljoin(repodata_url, "repomd.xml")
+        repomd_signature_url = urljoin(repodata_url, "repomd.xml.asc")
 
         await self.download_file(repomd_url, repomd_path)
-
+        await self.download_file(repomd_signature_url, repodata_path / "repomd.xml.asc", allow_fail=True)
         repomd = cr.Repomd(str(repomd_path))
+
         records = {}
         downloaders = []
 

@@ -62,18 +62,28 @@ def collect_repo_stats(repo_path: Path):
     parser.for_each_package(package_callback)
 
     metadata_total_size = 0
+    main_metadata_total_size = 0
     metadata_total_size_decompressed = 0
+    main_metadata_total_size_decompressed = 0
 
     for record in parser.repomd:
         if record.size and record.size != -1:
             metadata_total_size += record.size
+            if record.type in {"primary", "filelists", "other"}:
+                main_metadata_total_size += record.size
         if record.size_open != -1:
             metadata_total_size_decompressed += record.size_open
+            if record.type in {"primary", "filelists", "other"}:
+                main_metadata_total_size_decompressed += record.size_open
 
     if metadata_total_size:
         data["metadata_total_size"] = metadata_total_size
+    if main_metadata_total_size:
+        data["main_metadata_total_size"] = main_metadata_total_size
     if metadata_total_size_decompressed:
         data["metadata_total_size_decompressed"] = metadata_total_size_decompressed
+    if main_metadata_total_size_decompressed:
+        data["main_metadata_total_size_decompressed"] = main_metadata_total_size_decompressed
 
     data["unique_authors"] = len(data["unique_authors"])
 
