@@ -22,7 +22,7 @@ def collect_repo_stats(repo_path: Path):
         "packages_total_size": 0,
     }
 
-    def package_callback(pkg):
+    for pkg in parser.iter_packages():
         unique_authors = set()
         changelog_bytes_saved = 0
         total_changelogs = 0
@@ -58,8 +58,6 @@ def collect_repo_stats(repo_path: Path):
         if data["package_with_most_changelogs"].get("changelogs", 0) < total_changelogs:
             data["package_with_most_changelogs"]["changelogs"] = total_changelogs
             data["package_with_most_changelogs"]["nevra"] = pkg.nevra()
-
-    parser.for_each_package(package_callback)
 
     metadata_total_size = 0
     main_metadata_total_size = 0

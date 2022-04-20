@@ -3,6 +3,7 @@ import logging
 
 import createrepo_c as cr
 
+
 log = logging.getLogger(__name__)
 
 
@@ -58,29 +59,13 @@ class MetadataParser:
         # of duplicates.
         len(self.parse_packages(only_primary=True))
 
-    def for_each_package(self, pkgcb):
-        """Run a callback for each complete package encountered during metadata parsing."""
-        warnings = []
-
-        def warningcb(warning_type, message):
-            """Optional callback for warnings about wierd stuff and formatting in XML.
-
-            Args:
-                warning_type (int): One of the XML_WARNING_* constants.
-                message (str): Message.
-            """
-            warnings.append((warning_type, message))
-            return True  # continue parsing
-
-        cr.xml_parse_main_metadata_together(
-            str(self._primary_xml_path),
-            str(self._filelists_xml_path),
-            str(self._other_xml_path),
-            None,
-            pkgcb,
-            warningcb,
+    def iter_packages(self, warningcb=None):
+        return cr.PackageIterator(
+            primary_path=str(self._primary_xml_path),
+            filelists_path=str(self._filelists_xml_path),
+            other_path=str(self._other_xml_path),
+            warningcb=warningcb
         )
-        return warnings
 
     def parse_packages(self, only_primary=False):
         """
@@ -152,14 +137,3 @@ class MetadataParser:
             cr.xml_parse_filelists(str(self._filelists_xml_path), newpkgcb=newpkgcb, warningcb=warningcb)
             cr.xml_parse_other(str(self._other_xml_path), newpkgcb=newpkgcb, warningcb=warningcb)
         return packages
-
-    def yield_packages(self, only_primary=False):
-        """Iterate the packages in the original order in which they were parsed."""
-        packages = self.parse_packages(only_primary=only_primary)
-        while True:
-            try:
-                (pkgid, pkg) = packages.popitem(last=False)
-            except KeyError:
-                break
-
-            yield pkg

@@ -11,6 +11,8 @@ rpmrepo = "rpmrepo.cli:cli"
 [tool.poetry.dependencies]
 python = "^3.6"
 click = "^8.0.1"
+createrepo_c = ">=0.20.0"
+aiohttp = "~=3.8"
 
 [tool.poetry.dev-dependencies]
 pytest = "^4.6"

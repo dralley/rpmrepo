@@ -51,7 +51,19 @@ def check_repository_metadata(repo_path: Path, errata_check=None):
     nevra_occurences = defaultdict(list)
     package_occurrences = defaultdict(list)
 
-    def package_cb(pkg):
+    warnings = []
+
+    def warningcb(warning_type, message):
+        """Optional callback for warnings about wierd stuff and formatting in XML.
+
+        Args:
+            warning_type (int): One of the XML_WARNING_* constants.
+            message (str): Message.
+        """
+        warnings.append((warning_type, message))
+        return True  # continue parsing
+
+    for pkg in parser.iter_packages(warningcb=warningcb):
         checksum_types_used.add(pkg.checksum_type)
         nevra_occurences[pkg.nevra()].append(pkg.pkgId)
         package_occurrences[pkg.name].append(pkg)
@@ -64,8 +76,6 @@ def check_repository_metadata(repo_path: Path, errata_check=None):
                     pkg.nevra(), num_files, num_unique_files
                 )
             )
-
-    warnings = parser.for_each_package(package_cb)
 
     if errata_check:
         for name, packages in package_occurrences.items():
