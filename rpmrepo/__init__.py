@@ -1,1 +1,1 @@
-from .download import RepoHandle, DownloadConfig, RepoDownloader
+from .download import DownloadConfig, RepoDownloader

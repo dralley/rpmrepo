@@ -3,7 +3,6 @@ import logging
 
 import createrepo_c as cr
 
-
 log = logging.getLogger(__name__)
 
 

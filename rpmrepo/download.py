@@ -1,20 +1,25 @@
-from typing import Optional
-from pathlib import Path
-import sys
-import createrepo_c as cr
-from rpmrepo.metadata import MetadataParser
-import tempfile
-import aiohttp
-from concurrent.futures import ThreadPoolExecutor
-import hashlib
-from urllib.parse import urljoin
 import asyncio
-import ssl
-
-
-from pkg_resources import get_distribution
+import enum
+import hashlib
+import json
 import platform
+import sys
+import ssl
+import tempfile
+
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from pathlib import Path
+from pkg_resources import get_distribution
+from typing import Optional
+from urllib.parse import urljoin
+
+import aiohttp
 from aiohttp import __version__ as aiohttp_version
+import createrepo_c as cr
+
+from rpmrepo.metadata import MetadataParser
 
 
 def user_agent():
@@ -31,12 +36,11 @@ USER_AGENT = user_agent()
 
 # TODO: missing features
 # * proxies
-# * TLS validation
 # * timeouts
+# * progress reporting on individual files?
 class DownloadConfig:
     allow_env_var: bool = False
     user_agent: str = USER_AGENT
-    gpgcheck: bool = True
     verify_tls: bool = True
     tls_client_cert: Optional[Path] = None
     tls_client_key: Optional[Path] = None
@@ -65,43 +69,100 @@ class DownloadConfig:
             connector=conn,
             trust_env=self.allow_env_var,
             headers=headers,
+            timeout=aiohttp.ClientTimeout(total=None),
             **kwargs,
         )
         return session
 
 
-# TODO: missing features
-# * deltarpms
-# * treeinfo
-# * extra_files.json
-# * multi stage downloads (metadata, then packages, without duplicating work)
-# * gpgcheck
-# * repo_gpgcheck
-# * multimirror downloads
-# * mirrorlists
-# * progress reporting
-# * list of URLs
-class RepoDownloader:
+# TODO: unclear whether this ought to be separate or part of DownloadContext - good arguments both ways
+# if everything merged together:
+# * interaction with downloadcontext could be cleaner
+# * no longer need to provide a session argument on methods
+# but:
+# * feels like separate information
+# * would encourage throwing away the download context instead of reusing it, feels kinda weird
+class MirrorContext:
 
+    def __init__(self):
+        # self.mirrors = defaultdict(int)
+        self.mirrors = []
+
+    def from_urls(*sources):
+        source = MirrorContext()
+        source.mirrors.extend(sources)
+        return source
+
+    # def mark_failure(self, mirror):
+    #     self.mirrors[mirror] += 1
+
+    def urls_for_relative_path(self, rel_path):
+        # pick the mirrors with the least failures first
+        # for mirror, _ in sorted(self.mirrors.items(), key=lambda m: m[1]):
+        #     yield urljoin(mirror, rel_path)
+
+        for mirror in self.mirrors:
+            yield urljoin(mirror, rel_path)
+
+    @staticmethod
+    async def from_mirrorlist_url(mirrorlist_url: str, session: aiohttp.ClientSession):
+        # TODO: url component substitutions
+        source = MirrorContext()
+        async with session.get(mirrorlist_url) as resp:
+            mirrorlist = await resp.text()
+
+            for line in mirrorlist.splitlines():
+                # remove leading and trailing whitespace
+                line = line.strip()
+
+                if not line:
+                    continue
+
+                if "://" not in line and line[0] != "/":
+                    continue
+
+                source.mirrors.append(line)
+        return source
+
+    @staticmethod
+    async def from_metalink_url(metalink_url: str, session: aiohttp.ClientSession):
+        # TODO
+        pass
+
+
+# TODO:
+# * retry / multimirror handling
+class DownloadContext:
     def __init__(self):
         self.session = None
         self.config = None
 
     @staticmethod
-    def from_session(config: DownloadConfig, session: aiohttp.ClientSession):
-        downloader = RepoDownloader()
-        downloader.session = session
-        downloader.config = config
-        return downloader
+    def from_session(session: aiohttp.ClientSession):
+        ctx = DownloadContext()
+        ctx.session = session
+        return ctx
 
     @staticmethod
     def from_config(config: DownloadConfig):
-        downloader = RepoDownloader()
-        downloader.session = config.create_session()
-        downloader.config = config
-        return downloader
+        ctx = DownloadContext()
+        ctx.session = config.create_session()
+        ctx.config = config
+        return ctx
 
-    async def download_file(self, url, path, allow_fail=False):
+    async def mirrored_download(self, mirrors: MirrorContext, rel_path: str, path: Path, allow_fail=False):
+        # TODO: fancy fallback stuff
+        for mirror, url in zip(mirrors.mirrors, mirrors.urls_for_relative_path(rel_path)):
+            try:
+                return await self.download(url, path, allow_fail=allow_fail)
+            except Exception:  # TODO: should this be tightened up?
+                # mirrors.mark_failure(mirror)
+                continue
+
+        raise Exception("Download failed for \"{}\" - all mirrors tried".format(rel_path))
+
+    async def download(self, url: str, path: Path, allow_fail=False):
+        # TODO: allow_fail is inflexible
         async with self.session.get(url) as resp:
             if allow_fail and resp.status in {403, 404}:
                 return
@@ -110,72 +171,123 @@ class RepoDownloader:
                 async for chunk in resp.content.iter_chunked(1024 * 1024):
                     fd.write(chunk)
 
-    async def download_metadata(self, source, destination):
-        repo_path = Path(destination)
-        repodata_path = repo_path / "repodata"
-        repodata_path.mkdir(parents=True, exist_ok=True)
-        repomd_path = repodata_path / "repomd.xml"
-
-        repodata_url = urljoin(source, "repodata/")
-        repomd_url = urljoin(repodata_url, "repomd.xml")
-        repomd_signature_url = urljoin(repodata_url, "repomd.xml.asc")
-
-        await self.download_file(repomd_url, repomd_path)
-        await self.download_file(repomd_signature_url, repodata_path / "repomd.xml.asc", allow_fail=True)
-        repomd = cr.Repomd(str(repomd_path))
-
-        records = {}
-        downloaders = []
-
-        # TODO: verify checksums, parallelize
-        for record in repomd.records:
-            url = urljoin(record.location_base or source, record.location_href)
-            path = repo_path / record.location_href
-            records[record.type] = path
-            downloaders.append(self.download_file(url, path))
-
-        await asyncio.gather(*downloaders)
-        return {
-            "repodata": records,
-            "other": {}
-        }
-
-    async def yield_repository_files(packages=True):
-        pass
-
-    async def download_all(self, source, destination):
-        # with tempfile.TemporaryDirectory() as e:
-        # shutil.copytree(e, destination, dirs_exist_ok=True)
-
-        await self.download_metadata(source, destination)
-
-        repo_path = Path(destination)
-        repodata_path = Path(destination) / "repodata"
-        repodata_path.mkdir(parents=True, exist_ok=True)
-        repomd_path = repodata_path / "repomd.xml"
-
-        repomd = cr.Repomd(str(repomd_path))
-
-        primary_xml_path = [record for record in repomd.records if record.type == "primary"][0].location_href
-
-        parser = MetadataParser()
-        parser._primary_xml_path = repo_path / primary_xml_path  # TODO
-
-        downloaders = []
-
-        for package in parser.parse_packages(only_primary=True).values():
-            url = urljoin(package.location_base or source, package.location_href)
-            path = repo_path / package.location_href
-            downloaders.append(self.download_file(url, path))
-
-        await asyncio.gather(*downloaders)
-
     async def __aenter__(self):
         await self.session.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         await self.session.__aexit__(exc_type, exc_value, traceback)
+
+
+class RepoOptions(enum.Flag):
+    PrimaryXML = enum.auto()
+    FilelistsXML = enum.auto()
+    OtherXML = enum.auto()
+    MainXmlMetadata = PrimaryXML | FilelistsXML | OtherXML
+
+    # everything referenced by repomd.xml
+    AllRpmMetadata = enum.auto()
+    # everything not referenced by repomd.xml (treeinfo, extra_files.json, GPG keys)
+    ExtraMetadata = enum.auto()
+
+    AllMetadata = AllRpmMetadata | ExtraMetadata
+    Packages = enum.auto()
+    Everything = AllMetadata | Packages
+
+
+# TODO: missing features
+# * multi stage downloads (don't download things that are already there)
+# * gpgcheck
+# * repo_gpgcheck
+# * progress reporting
+class RepoDownloader:
+    def __init__(self, download_context):
+        self.ctx = download_context
+
+    async def download_repo(self, mirrors: MirrorContext, destination: Path, options=RepoOptions.Everything):
+        # TODO: put everything into a temporary directory before moving it to the destination?
+        # with tempfile.TemporaryDirectory() as e:
+        # shutil.copytree(e, destination, dirs_exist_ok=True)
+
+        repo_path = Path(destination)
+        repodata_path = repo_path / "repodata"
+        repodata_path.mkdir(parents=True, exist_ok=True)
+        repomd_path = repodata_path / "repomd.xml"
+
+        # TODO: verify checksums, add to report
+        # TODO: handle the files .treeinfo points to
+
+        await self.ctx.mirrored_download(mirrors, "repodata/repomd.xml", repomd_path)
+
+        if options & RepoOptions.ExtraMetadata:
+            for name in ("repomd.xml.asc", "repomd.xml.key"):
+                await self.ctx.mirrored_download(mirrors, "repodata/" + name, repodata_path / name, allow_fail=True)
+
+            for name in (".treeinfo", "treeinfo"):
+                await self.ctx.mirrored_download(mirrors, name, repo_path / name, allow_fail=True)
+
+            # try:
+            #     await self.mirrored_download(urljoin(source, "extra_files.json"), "extra_files.json")
+            #     with open("extra_files.json", "r") as f:
+            #         extra_files = json.loads(f.read())
+            #         for data in extra_files["data"]:
+            #             await self.mirrored_download(urljoin(source, data["file"]), data["file"])
+            # except Exception:
+            #     pass
+
+        parser = MetadataParser.from_repo(repo_path)
+
+        records = {}
+        downloaders = []
+
+        def include_md_file(mdtype: str, options: RepoOptions):
+            if options & RepoOptions.AllRpmMetadata:
+                return True
+
+            if mdtype == "primary":
+                return options & RepoOptions.PrimaryXML
+            elif mdtype == "filelists":
+                return options & RepoOptions.FilelistsXML
+            elif mdtype == "other":
+                return options & RepoOptions.OtherXML
+
+            return False
+
+        # TODO: verify checksums
+        for record in parser.repomd.records:
+            if not include_md_file(record.type, options):
+                continue
+            path = repo_path / record.location_href
+            records[record.type] = path
+            if record.location_base:
+                url = urljoin(record.location_base, record.location_href)
+                downloader = self.ctx.download(url, path)
+            else:
+                downloader = self.ctx.mirrored_download(mirrors, record.location_href, path)
+            downloaders.append(downloader)
+
+        await asyncio.gather(*downloaders)
+
+        if options & RepoOptions.Packages:
+            downloaders = []
+            for package in parser.parse_packages(only_primary=True).values():
+                path = repo_path / package.location_href
+                if package.location_base:
+                    url = urljoin(package.location_base, package.location_href)
+                    downloader = self.ctx.download(url, path)
+                else:
+                    downloader = self.ctx.mirrored_download(mirrors, package.location_href, path)
+                downloaders.append(downloader)
+
+            await asyncio.gather(*downloaders)
+            return LocalRepoHandle(repo_path)
+
+    async def __aenter__(self):
+        await self.ctx.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.ctx.__aexit__(exc_type, exc_value, traceback)
 
 
 # url = "https://fixtures.pulpproject.org/rpm-unsigned/"
@@ -194,58 +306,6 @@ class RepoDownloader:
 #         local = downloader.download_all(source, "foo/")
 #         local.verify()
 
-
-# url = "https://fixtures.pulpproject.org/rpm-unsigned/"
-# config = rpmrepo.DownloadConfig()
-# with config.create_session() as session:
-#     source = rpmrepo.RepoHandle.from_url(url, session)
-#     local = source.download_all("foo/")
-
-# url = "https://fixtures.pulpproject.org/rpm-unsigned/"
-# with DownloadConfig().create_session() as session:
-#     source = rpmrepo.RepoHandle.from_url(url, session):
-#     local = source.download_all("foo/")
-
-
-class RepoHandle:
-
-    @staticmethod
-    def from_mirrorlist_url(url: str, substitutions: dict):
-        urls = []
-
-        mirrorlist = session.get(url)
-
-        for line in mirrorlist.lines():
-            # remove leading and trailing whitespace
-            line = line.strip()
-
-            if not line:
-                continue
-
-            if "://" not in line and line[0] != "/":
-                continue
-
-            urls.append(line)
-
-        handle = RemoteRepoHandle()
-        handle.urls = urls
-        return handle
-
-    @staticmethod
-    def from_url(url: str):
-        handle = RemoteRepoHandle()
-        handle.urls = [url]
-        return handle
-
-    @staticmethod
-    def from_path(path: str):
-        return LocalRepoHandle(Path(path))
-
-
-class RemoteRepoHandle:
-
-    def __init__(self, path: str):
-        self.sources = []
 
 class LocalRepoHandle:
 
@@ -273,7 +333,7 @@ class LocalRepoHandle:
             cr.SHA512: hashlib.sha512,
         }
 
-        def verify_file_checksum(path, hasher, expected):
+        def verify_file_checksum(path, hasher, expected: str):
             with path.open(mode='rb') as f:
                 while True:
                     chunk = f.read(8192)
@@ -289,7 +349,7 @@ class LocalRepoHandle:
             expected = pkg.pkgId
             return verify_file_checksum(path, hasher, expected)
 
-        def verify_metadata(record):
+        def verify_metadata_record(record):
             path = self.path / record.location_href
             hasher = checksum_to_hasher[cr.checksum_type(record.checksum_type)]()
             expected = record.checksum
@@ -299,8 +359,8 @@ class LocalRepoHandle:
 
         # TODO: do better than assertions
         with ThreadPoolExecutor() as exc:
-            for metadata_file, verified in zip(metadata, exc.map(verify_metadata, metadata)):
-                assert verified, "Failed checksum validation for {}".format(metadata_file.location_href)
+            for record, verified in zip(metadata, exc.map(verify_metadata_record, metadata)):
+                assert verified, "Failed checksum validation for {}".format(record.location_href)
 
             for pkg, verified in zip(packages, exc.map(verify_package, packages)):
                 assert verified, "Failed checksum validation for {}".format(pkg.nevra())
@@ -325,19 +385,22 @@ def callback(data, total_to_download, downloaded):
     sys.stdout.flush()
 
 
-def download_repo(url, destination, config=None, only_metadata=False):
+def download_repo(url, destination, config=None, options=RepoOptions.Everything):
     if config is None:
         config = DownloadConfig()
 
     ###############################
 
     async def main():
-        async with RepoDownloader.from_config(config) as downloader:
+        ctx = DownloadContext.from_config(config)
+        async with RepoDownloader(ctx) as downloader:
+            # if "mirrorlist" in url:
+            #     source = await MirrorContext.from_mirrorlist_url(url, ctx.session)
+            # else:
+            source = MirrorContext.from_urls(url)
+
             try:
-                if only_metadata:
-                    await downloader.download_metadata(url, destination)
-                else:
-                    await downloader.download_all(url, destination)
+                await downloader.download_repo(source, destination, options=options)
             except aiohttp.ClientResponseError as e:
                 print(str(e))  # TODO: better formatted error message
                 sys.exit(1)

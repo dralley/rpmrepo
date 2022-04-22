@@ -44,7 +44,7 @@ def download(
     only_metadata,
     no_check_certificate,
 ):
-    from .download import download_repo, DownloadConfig
+    from .download import download_repo, DownloadConfig, RepoOptions
     from pathlib import Path
 
     config = DownloadConfig()
@@ -56,7 +56,8 @@ def download(
     if concurrency:
         config.concurrency = concurrency
 
-    download_repo(url, Path(destination), config=config, only_metadata=only_metadata)
+    options = RepoOptions.AllMetadata if only_metadata else RepoOptions.Everything
+    download_repo(url, Path(destination), config=config, options=options)
 
 
 # @click.option('--signatures', is_flag=True, help='Only verify signatures')
@@ -100,9 +101,44 @@ def stats(path, json_formatting):
     stats = collect_repo_stats(repo_path)
 
     def format_stats(stats):
+
+        def format_columns(*args):
+            print()
+            widths = [max(map(len, col)) for col in zip(*args)]
+            for row in args:
+                print("  ".join((val.ljust(width) for val, width in zip(row, widths))))
+            print()
+
+        # print("========")
+        # print("Packages")
+        # print("========")
+
+        # format_columns(
+        #     ("Number of packages:", str(stats["number_packages"])),
+        #     ("Number of unique packages (latest version):", str(stats["number_unique_packages"])),
+        #     ("Number of packages (latest 3 versions):", str(stats["number_packages_excluding_old_versions"])),
+        #     ("Packages total size:", format_size(stats["packages_total_size"])),
+        #     ("Packages total size (latest 3 versions):", format_size(stats["size_packages_excluding_old_versions"])),
+        # )
+
+        # print("========")
+        # print("Metadata")
+        # print("========")
+
+        # format_columns(
+        #     ("Metadata total size:", format_size(stats["metadata_total_size"])),
+        #     ("Main metadata total size:", format_size(stats["main_metadata_total_size"])),
+        #     ("Metadata total size (decompressed):", format_size(stats["metadata_total_size_decompressed"])),
+        #     ("Main metadata total size (decompressed):", format_size(stats["main_metadata_total_size_decompressed"])),
+        # )
+
         data = []
         data.append(("Number of packages:", str(stats["number_packages"])))
+        # data.append(("└─ Number of unique packages (latest version):", str(stats["number_unique_packages"])))
+        # data.append(("└─ Number of packages (latest 3 versions):", str(stats["number_packages_excluding_old_versions"])))
         data.append(("Packages total size:", format_size(stats["packages_total_size"])))
+        # data.append(("└─ Packages total size (latest version):", format_size(stats["size_unique_packages"])))
+        # data.append(("└─ Packages total size (latest 3 versions):", format_size(stats["size_packages_excluding_old_versions"])))
 
         if "metadata_total_size" in stats:
             data.append(("Metadata total size:", format_size(stats["metadata_total_size"])))
@@ -116,11 +152,7 @@ def stats(path, json_formatting):
         if "main_metadata_total_size_decompressed" in stats:
             data.append(("└─ Main metadata total size (decompressed):", format_size(stats["main_metadata_total_size_decompressed"])))
 
-        print()
-        widths = [max(map(len, col)) for col in zip(*data)]
-        for row in data:
-            print("  ".join((val.ljust(width) for val, width in zip(row, widths))))
-        print()
+        format_columns(*data)
 
     if json_formatting:
         print(json.dumps(stats, indent=4))
