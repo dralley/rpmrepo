@@ -63,7 +63,7 @@ class MetadataParser:
             primary_path=str(self._primary_xml_path),
             filelists_path=str(self._filelists_xml_path),
             other_path=str(self._other_xml_path),
-            warningcb=warningcb
+            warningcb=warningcb,
         )
 
     def parse_packages(self, only_primary=False):

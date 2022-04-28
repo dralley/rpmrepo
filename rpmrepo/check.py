@@ -5,7 +5,7 @@ import itertools
 from rpmrepo.metadata import MetadataParser
 
 
-INSECURE_CHECKSUMS = {'md5', 'sha', 'sha1'}
+INSECURE_CHECKSUMS = {"md5", "sha", "sha1"}
 
 
 def check_repository_metadata(repo_path: Path, errata_check=None):
@@ -31,7 +31,13 @@ def check_repository_metadata(repo_path: Path, errata_check=None):
         for record in parser.advisories():
             for collection in record.collections:
                 for package in collection.packages:
-                    nevra = format_nevra(package.name, package.epoch, package.version, package.release, package.arch)
+                    nevra = format_nevra(
+                        package.name,
+                        package.epoch,
+                        package.version,
+                        package.release,
+                        package.arch,
+                    )
                     packages_with_advisories[package.name].add(nevra)
 
     for record in parser.repomd.records:
@@ -100,8 +106,7 @@ def check_repository_metadata(repo_path: Path, errata_check=None):
     # the same package is listed multiple times in the metadata. It's probably safe to assume that
     # you cannot have duplicate pkgId without duplicate NEVRA.
     duplicate_nevra = {
-        nevra: pkgids for nevra, pkgids in nevra_occurences.items()
-        if len(pkgids) > 1
+        nevra: pkgids for nevra, pkgids in nevra_occurences.items() if len(pkgids) > 1
     }
 
     def all_equal(iterable):
@@ -112,12 +117,14 @@ def check_repository_metadata(repo_path: Path, errata_check=None):
         if all_equal(pkgids):
             errors.append(
                 "Duplicate package '{nevra}'\n appears {count} times with pkgid '{pkgid}'".format(
-                    nevra=nevra, count=len(pkgids), pkgid=pkgids[0])
+                    nevra=nevra, count=len(pkgids), pkgid=pkgids[0]
+                )
             )
         else:
             errors.append(
                 "Duplicate package '{nevra}'\n appears {count} times with pkgids {pkgids}".format(
-                    nevra=nevra, count=len(pkgids), pkgids=pkgids)
+                    nevra=nevra, count=len(pkgids), pkgids=pkgids
+                )
             )
 
     # TODO: check signatures of packages + metadata

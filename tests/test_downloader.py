@@ -6,6 +6,7 @@ import rpmrepo
 
 # TODO: use an actual randomized temporary directory
 
+
 @pytest.mark.asyncio
 async def test_invalid_url():
     url = "https://fixtures.pulpproject.org/not-a-repo-that-exists/"

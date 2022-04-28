@@ -16,24 +16,38 @@ def cli():
 
 
 @click.command()
-@click.argument('destination', type=click.Path())
-@click.argument('url', type=str)
-@click.option('--concurrency', type=int, default=0, help='How many files can be downloaded in parallel')
+@click.argument("destination", type=click.Path())
+@click.argument("url", type=str)
 @click.option(
-    '--tls-ca-cert',
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help='Specify a TLS CA cert location (if not present in system trust store)')
-@click.option(
-    '--tls-client-cert',
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help='Specify a TLS client cert location (.pem, .crt, .cert)')
-@click.option(
-    '--tls-client-cert-key',
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help='Specify a TLS client key location (.pem, .key). Not needed if the cert file (.pem) contains an embedded key.'
+    "--concurrency",
+    type=int,
+    default=0,
+    help="How many files can be downloaded in parallel",
 )
-@click.option('--only-metadata', default=False, is_flag=True, help='Download metadata only')
-@click.option('--no-check-certificate', default=False, is_flag=True, help='Disable TLS server certificate verification')
+@click.option(
+    "--tls-ca-cert",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Specify a TLS CA cert location (if not present in system trust store)",
+)
+@click.option(
+    "--tls-client-cert",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Specify a TLS client cert location (.pem, .crt, .cert)",
+)
+@click.option(
+    "--tls-client-cert-key",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Specify a TLS client key location (.pem, .key). Not needed if the cert file (.pem) contains an embedded key.",
+)
+@click.option(
+    "--only-metadata", default=False, is_flag=True, help="Download metadata only"
+)
+@click.option(
+    "--no-check-certificate",
+    default=False,
+    is_flag=True,
+    help="Disable TLS server certificate verification",
+)
 def download(
     destination,
     url,
@@ -64,28 +78,35 @@ def download(
 # @click.option('--checksums', is_flag=True, help='Only verify checksums')
 # @click.option('--strict', is_flag=True, help='Turn most warnings into errors')
 @click.command()
-@click.argument('path', required=False, type=click.Path())
-@click.option('--errata-coverage-check', default=None, type=int, help='A unix timestamp - all packages built after this moment must be covered by an errata or will be returned as a warning.')
+@click.argument("path", required=False, type=click.Path())
+@click.option(
+    "--errata-coverage-check",
+    default=None,
+    type=int,
+    help="A unix timestamp - all packages built after this moment must be covered by an errata or will be returned as a warning.",
+)
 def check(path, errata_coverage_check):
     # TODO:
     # * security mode - disallowed checksums (warning?)
     # * provide specific keys to verify against
 
     repo_path = Path(path) if path else Path(os.getcwd())
-    (warnings, errors) = check_repository_metadata(repo_path, errata_check=errata_coverage_check)
+    (warnings, errors) = check_repository_metadata(
+        repo_path, errata_check=errata_coverage_check
+    )
 
     for error in errors:
-        click.secho("[ERROR] ", fg='bright_red', bold=True, nl=False)
+        click.secho("[ERROR] ", fg="bright_red", bold=True, nl=False)
         click.secho(error)
         # click.secho()
 
     for warning in warnings:
-        click.secho("[WARNING] ", fg='bright_yellow', bold=True, nl=False)
+        click.secho("[WARNING] ", fg="bright_yellow", bold=True, nl=False)
         click.secho(warning)
         # click.secho()
 
     if not warnings and not errors:
-        click.secho("[OK]", fg='bright_green', bold=True)
+        click.secho("[OK]", fg="bright_green", bold=True)
 
     # TODO: decide which layer to manage error messages in (Wrapper types with str() or just passing strings around)
 
@@ -165,5 +186,5 @@ cli.add_command(check)
 cli.add_command(stats)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
