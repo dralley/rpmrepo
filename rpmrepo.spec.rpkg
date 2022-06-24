@@ -1,7 +1,7 @@
 Name:           python3-rpmrepo
 Version:        {{{ git_dir_version }}}
 Release:        1%{?dist}
-Summary:        A library and CLI tool for working with RPM repositories.
+Summary:        A library and CLI tool for working with RPM repositories
 
 License:        GPLv2
 URL:            https://github.com/dralley/rpmrepo

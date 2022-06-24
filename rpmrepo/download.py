@@ -51,7 +51,7 @@ class DownloadConfig:
 
     def create_session(self, **kwargs):
         # default certificates are loaded if tls_ca_cert is None
-        sslcontext = None
+        sslcontext = False
         if self.verify_tls:
             sslcontext = ssl.create_default_context(cafile=self.tls_ca_cert)
             if self.tls_client_cert:
