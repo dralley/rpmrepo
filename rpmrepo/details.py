@@ -1,12 +1,14 @@
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import createrepo_c as cr
 
+# from rpmrepo_metadata import EVR
 from rpmrepo.metadata import MetadataParser
 
 
-def collect_repo_stats(repo_path: Path):
+def collect_repo_details(repo_path: Path):
     parser = MetadataParser.from_repo(repo_path)
 
     data = {
@@ -22,6 +24,10 @@ def collect_repo_stats(repo_path: Path):
         "packages_total_size": 0,
     }
 
+    latest_packages_by_arch_and_name = defaultdict(lambda: defaultdict(list))
+
+    NUM_TO_KEEP = 3
+
     for pkg in parser.iter_packages():
         unique_authors = set()
         changelog_bytes_saved = 0
@@ -36,7 +42,9 @@ def collect_repo_stats(repo_path: Path):
                 changelog_bytes_saved += sys.getsizeof(author)
             unique_authors.add(author)
             total_changelogs += 1
-            changelog_description_bytes += sys.getsizeof(changelog[cr.CHANGELOG_ENTRY_CHANGELOG])
+            changelog_description_bytes += sys.getsizeof(
+                changelog[cr.CHANGELOG_ENTRY_CHANGELOG]
+            )
 
         for f in pkg.files:
             total_file_entries += 1
@@ -59,10 +67,18 @@ def collect_repo_stats(repo_path: Path):
             data["package_with_most_changelogs"]["changelogs"] = total_changelogs
             data["package_with_most_changelogs"]["nevra"] = pkg.nevra()
 
+        # latest_packages_by_arch_and_name[pkg.arch][pkg.name].append(
+        #     (EVR(pkg.epoch, pkg.version, pkg.release), pkg.size_package)
+        # )
+
     metadata_total_size = 0
     main_metadata_total_size = 0
     metadata_total_size_decompressed = 0
     main_metadata_total_size_decompressed = 0
+    number_unique_packages = 0
+    number_packages_excluding_old_versions = 0
+    size_unique_packages = 0
+    size_packages_excluding_old_versions = 0
 
     for record in parser.repomd:
         if record.size and record.size != -1:
@@ -74,6 +90,21 @@ def collect_repo_stats(repo_path: Path):
             if record.type in {"primary", "filelists", "other"}:
                 main_metadata_total_size_decompressed += record.size_open
 
+    # # TODO: modular package calculations
+    # for arch, packages_by_name in latest_packages_by_arch_and_name.items():
+    #     for name, packages in packages_by_name.items():
+    #         packages.sort(key=lambda pkg: pkg[0], reverse=True)
+    #         latest_packages = packages[:NUM_TO_KEEP]
+    #         number_unique_packages += 1
+    #         number_packages_excluding_old_versions += len(latest_packages)
+    #         size_unique_packages += latest_packages[-1][1]
+    #         size_packages_excluding_old_versions += sum([pkg[1] for pkg in latest_packages])
+
+    data["number_unique_packages"] = number_unique_packages
+    data["number_packages_excluding_old_versions"] = number_packages_excluding_old_versions
+    data["size_unique_packages"] = size_unique_packages
+    data["size_packages_excluding_old_versions"] = size_packages_excluding_old_versions
+
     if metadata_total_size:
         data["metadata_total_size"] = metadata_total_size
     if main_metadata_total_size:
@@ -81,7 +112,9 @@ def collect_repo_stats(repo_path: Path):
     if metadata_total_size_decompressed:
         data["metadata_total_size_decompressed"] = metadata_total_size_decompressed
     if main_metadata_total_size_decompressed:
-        data["main_metadata_total_size_decompressed"] = main_metadata_total_size_decompressed
+        data[
+            "main_metadata_total_size_decompressed"
+        ] = main_metadata_total_size_decompressed
 
     data["unique_authors"] = len(data["unique_authors"])
 

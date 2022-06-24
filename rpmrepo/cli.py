@@ -7,7 +7,7 @@ import click
 from humanfriendly import format_size
 
 from .check import check_repository_metadata
-from .stats import collect_repo_stats
+from .details import collect_repo_details
 
 
 @click.group()
@@ -117,9 +117,9 @@ def check(path, errata_coverage_check):
 @click.command()
 @click.argument('path', required=False, type=click.Path())
 @click.option('--json', 'json_formatting', default=False, is_flag=True, help='Output raw JSON.')
-def stats(path, json_formatting):
+def details(path, json_formatting):
     repo_path = Path(path) if path else Path(os.getcwd())
-    stats = collect_repo_stats(repo_path)
+    stats = collect_repo_details(repo_path)
 
     def format_stats(stats):
 
@@ -130,50 +130,67 @@ def stats(path, json_formatting):
                 print("  ".join((val.ljust(width) for val, width in zip(row, widths))))
             print()
 
-        # print("========")
-        # print("Packages")
-        # print("========")
+        print("========")
+        print("Packages")
+        print("========")
 
-        # format_columns(
-        #     ("Number of packages:", str(stats["number_packages"])),
-        #     ("Number of unique packages (latest version):", str(stats["number_unique_packages"])),
-        #     ("Number of packages (latest 3 versions):", str(stats["number_packages_excluding_old_versions"])),
-        #     ("Packages total size:", format_size(stats["packages_total_size"])),
-        #     ("Packages total size (latest 3 versions):", format_size(stats["size_packages_excluding_old_versions"])),
-        # )
+        format_columns(
+            ("Number of packages:", str(stats["number_packages"])),
+            ("Number of unique packages (latest version):", str(stats["number_unique_packages"])),
+            ("Number of packages (latest 3 versions):", str(stats["number_packages_excluding_old_versions"])),
+            ("Packages total size:", format_size(stats["packages_total_size"])),
+            ("Packages total size (latest 3 versions):", format_size(stats["size_packages_excluding_old_versions"])),
+        )
 
-        # print("========")
-        # print("Metadata")
-        # print("========")
+        print("========")
+        print("Metadata")
+        print("========")
 
-        # format_columns(
-        #     ("Metadata total size:", format_size(stats["metadata_total_size"])),
-        #     ("Main metadata total size:", format_size(stats["main_metadata_total_size"])),
-        #     ("Metadata total size (decompressed):", format_size(stats["metadata_total_size_decompressed"])),
-        #     ("Main metadata total size (decompressed):", format_size(stats["main_metadata_total_size_decompressed"])),
-        # )
+        format_columns(
+            ("Metadata total size:", format_size(stats["metadata_total_size"])),
+            ("Main metadata total size:", format_size(stats["main_metadata_total_size"])),
+            ("Metadata total size (decompressed):", format_size(stats["metadata_total_size_decompressed"])),
+            ("Main metadata total size (decompressed):", format_size(stats["main_metadata_total_size_decompressed"])),
+        )
 
-        data = []
-        data.append(("Number of packages:", str(stats["number_packages"])))
+        # data = []
+        # data.append(("Number of packages:", str(stats["number_packages"])))
         # data.append(("└─ Number of unique packages (latest version):", str(stats["number_unique_packages"])))
         # data.append(("└─ Number of packages (latest 3 versions):", str(stats["number_packages_excluding_old_versions"])))
-        data.append(("Packages total size:", format_size(stats["packages_total_size"])))
+        # data.append(("Packages total size:", format_size(stats["packages_total_size"])))
         # data.append(("└─ Packages total size (latest version):", format_size(stats["size_unique_packages"])))
         # data.append(("└─ Packages total size (latest 3 versions):", format_size(stats["size_packages_excluding_old_versions"])))
 
-        if "metadata_total_size" in stats:
-            data.append(("Metadata total size:", format_size(stats["metadata_total_size"])))
+        # if "metadata_total_size" in stats:
+        #     data.append(
+        #         ("Metadata total size:", format_size(stats["metadata_total_size"]))
+        #     )
 
-        if "main_metadata_total_size" in stats:
-            data.append(("└─ Main metadata total size:", format_size(stats["main_metadata_total_size"])))
+        # if "main_metadata_total_size" in stats:
+        #     data.append(
+        #         (
+        #             "└─ Main metadata total size:",
+        #             format_size(stats["main_metadata_total_size"]),
+        #         )
+        #     )
 
-        if "metadata_total_size_decompressed" in stats:
-            data.append(("Metadata total size (decompressed):", format_size(stats["metadata_total_size_decompressed"])))
+        # if "metadata_total_size_decompressed" in stats:
+        #     data.append(
+        #         (
+        #             "Metadata total size (decompressed):",
+        #             format_size(stats["metadata_total_size_decompressed"]),
+        #         )
+        #     )
 
-        if "main_metadata_total_size_decompressed" in stats:
-            data.append(("└─ Main metadata total size (decompressed):", format_size(stats["main_metadata_total_size_decompressed"])))
+        # if "main_metadata_total_size_decompressed" in stats:
+        #     data.append(
+        #         (
+        #             "└─ Main metadata total size (decompressed):",
+        #             format_size(stats["main_metadata_total_size_decompressed"]),
+        #         )
+        #     )
 
-        format_columns(*data)
+        # format_columns(*data)
 
     if json_formatting:
         print(json.dumps(stats, indent=4))
@@ -183,7 +200,7 @@ def stats(path, json_formatting):
 
 cli.add_command(download)
 cli.add_command(check)
-cli.add_command(stats)
+cli.add_command(details)
 
 
 if __name__ == "__main__":
