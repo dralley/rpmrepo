@@ -39,6 +39,7 @@ USER_AGENT = user_agent()
 # * timeouts
 # * progress reporting on individual files?
 class DownloadConfig:
+    auth_token: str = None
     allow_env_var: bool = False
     user_agent: str = USER_AGENT
     verify_tls: bool = True
@@ -163,6 +164,8 @@ class DownloadContext:
 
     async def download(self, url: str, path: Path, allow_fail=False):
         # TODO: allow_fail is inflexible
+        if self.config.auth_token is not None:
+            url = url + f"?{self.config.auth_token}"
         async with self.session.get(url) as resp:
             if allow_fail and resp.status in {403, 404}:
                 return

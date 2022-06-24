@@ -25,6 +25,11 @@ def cli():
     help="How many files can be downloaded in parallel",
 )
 @click.option(
+    "--auth-token",
+    type=str,
+    help="Parameter to be included with every request - used for SUSE authentication.",
+)
+@click.option(
     "--tls-ca-cert",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Specify a TLS CA cert location (if not present in system trust store)",
@@ -52,6 +57,7 @@ def download(
     destination,
     url,
     concurrency,
+    auth_token,
     tls_ca_cert,
     tls_client_cert,
     tls_client_cert_key,
@@ -67,6 +73,7 @@ def download(
     config.tls_client_cert = tls_client_cert
     config.tls_client_key = tls_client_cert_key
     config.gpgcheck = False
+    config.auth_token = auth_token
     if concurrency:
         config.concurrency = concurrency
 
