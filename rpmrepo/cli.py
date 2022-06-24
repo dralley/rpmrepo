@@ -146,6 +146,7 @@ def details(path, json_formatting):
             ("Number of unique packages (latest version):", str(stats["number_unique_packages"])),
             ("Number of packages (latest 3 versions):", str(stats["number_packages_excluding_old_versions"])),
             ("Packages total size:", format_size(stats["packages_total_size"])),
+            ("Packages total size (latest version):", format_size(stats["size_unique_packages"])),
             ("Packages total size (latest 3 versions):", format_size(stats["size_packages_excluding_old_versions"])),
         )
 

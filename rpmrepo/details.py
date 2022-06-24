@@ -4,7 +4,7 @@ from pathlib import Path
 
 import createrepo_c as cr
 
-# from rpmrepo_metadata import EVR
+from rpmrepo.vendor.evr import RpmVersion
 from rpmrepo.metadata import MetadataParser
 
 
@@ -67,9 +67,9 @@ def collect_repo_details(repo_path: Path):
             data["package_with_most_changelogs"]["changelogs"] = total_changelogs
             data["package_with_most_changelogs"]["nevra"] = pkg.nevra()
 
-        # latest_packages_by_arch_and_name[pkg.arch][pkg.name].append(
-        #     (EVR(pkg.epoch, pkg.version, pkg.release), pkg.size_package)
-        # )
+        latest_packages_by_arch_and_name[pkg.arch][pkg.name].append(
+            (RpmVersion(pkg.epoch, pkg.version, pkg.release), pkg.size_package)
+        )
 
     metadata_total_size = 0
     main_metadata_total_size = 0
@@ -90,15 +90,15 @@ def collect_repo_details(repo_path: Path):
             if record.type in {"primary", "filelists", "other"}:
                 main_metadata_total_size_decompressed += record.size_open
 
-    # # TODO: modular package calculations
-    # for arch, packages_by_name in latest_packages_by_arch_and_name.items():
-    #     for name, packages in packages_by_name.items():
-    #         packages.sort(key=lambda pkg: pkg[0], reverse=True)
-    #         latest_packages = packages[:NUM_TO_KEEP]
-    #         number_unique_packages += 1
-    #         number_packages_excluding_old_versions += len(latest_packages)
-    #         size_unique_packages += latest_packages[-1][1]
-    #         size_packages_excluding_old_versions += sum([pkg[1] for pkg in latest_packages])
+    # TODO: modular package calculations
+    for arch, packages_by_name in latest_packages_by_arch_and_name.items():
+        for name, packages in packages_by_name.items():
+            packages.sort(key=lambda pkg: pkg[0], reverse=True)
+            latest_packages = packages[:NUM_TO_KEEP]
+            number_unique_packages += 1
+            number_packages_excluding_old_versions += len(latest_packages)
+            size_unique_packages += latest_packages[-1][1]
+            size_packages_excluding_old_versions += sum([pkg[1] for pkg in latest_packages])
 
     data["number_unique_packages"] = number_unique_packages
     data["number_packages_excluding_old_versions"] = number_packages_excluding_old_versions
