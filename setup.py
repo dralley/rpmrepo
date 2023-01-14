@@ -5,7 +5,7 @@ with open("requirements.txt") as requirements:
 
 setup(
     name="rpmrepo",
-    version="0.1.0.dev7",
+    version="0.1.0.dev8",
     description="A library and CLI tool providing facilities for working with RPM repositories.",
     author="Daniel Alley",
     license="GPLv2",

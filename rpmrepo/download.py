@@ -1,4 +1,6 @@
 import asyncio
+import aiofiles
+import aiofiles.os
 import enum
 import hashlib
 import json
@@ -6,6 +8,7 @@ import platform
 import sys
 import ssl
 import tempfile
+import os
 
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -166,13 +169,14 @@ class DownloadContext:
         # TODO: allow_fail is inflexible
         if self.config.auth_token is not None:
             url = url + f"?{self.config.auth_token}"
+        await aiofiles.os.makedirs(os.path.dirname(path), exist_ok=True)
         async with self.session.get(url) as resp:
             if allow_fail and resp.status in {403, 404}:
                 return
             resp.raise_for_status()
-            with open(path, 'wb') as fd:
+            async with aiofiles.open(path, 'wb') as fd:
                 async for chunk in resp.content.iter_chunked(1024 * 1024):
-                    fd.write(chunk)
+                    await fd.write(chunk)
 
     async def __aenter__(self):
         await self.session.__aenter__()
@@ -239,6 +243,7 @@ class RepoDownloader:
             #     pass
 
         parser = MetadataParser.from_repo(repo_path)
+        handle = LocalRepoHandle(repo_path)
 
         records = {}
         downloaders = []
@@ -275,6 +280,9 @@ class RepoDownloader:
             downloaders = []
             for package in parser.parse_packages(only_primary=True).values():
                 path = repo_path / package.location_href
+                if await aiofiles.os.path.exists(path):
+                    if handle.verify_package(package):
+                        continue
                 if package.location_base:
                     url = urljoin(package.location_base, package.location_href)
                     downloader = self.ctx.download(url, path)
@@ -283,7 +291,7 @@ class RepoDownloader:
                 downloaders.append(downloader)
 
             await asyncio.gather(*downloaders)
-            return LocalRepoHandle(repo_path)
+            return handle
 
     async def __aenter__(self):
         await self.ctx.__aenter__()
