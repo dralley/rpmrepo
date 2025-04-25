@@ -22,8 +22,6 @@ import aiohttp
 from aiohttp import __version__ as aiohttp_version
 import createrepo_c as cr
 
-from rpmrepo.metadata import MetadataParser
-
 
 def user_agent():
     """Produce a User-Agent string with relevant system info."""
@@ -187,10 +185,11 @@ class DownloadContext:
 
 
 class RepoOptions(enum.Flag):
+    RepomdXML = enum.auto()
     PrimaryXML = enum.auto()
     FilelistsXML = enum.auto()
     OtherXML = enum.auto()
-    MainXmlMetadata = PrimaryXML | FilelistsXML | OtherXML
+    MainXmlMetadata = RepomdXML | PrimaryXML | FilelistsXML | OtherXML
 
     # everything referenced by repomd.xml
     AllRpmMetadata = enum.auto()
@@ -242,7 +241,7 @@ class RepoDownloader:
             # except Exception:
             #     pass
 
-        parser = MetadataParser.from_repo(repo_path)
+        parser = cr.RepositoryReader.from_path(repo_path)
         handle = LocalRepoHandle(repo_path)
 
         records = {}
@@ -330,7 +329,7 @@ class LocalRepoHandle:
 
     # TODO: allow missing option?
     def verify(self):
-        parser = MetadataParser.from_repo(self.path)
+        parser = cr.RepositoryReader.from_path(self.path)
         packages = list(parser.parse_packages(only_primary=True).values())
         metadata = parser.repomd.records
 
@@ -416,10 +415,4 @@ def download_repo(url, destination, config=None, options=RepoOptions.Everything)
                 print(str(e))  # TODO: better formatted error message
                 sys.exit(1)
 
-    if sys.version_info.minor == 6:
-        # 3.6
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-    else:
-        # 3.7+
-        asyncio.run(main())
+    asyncio.run(main())

@@ -5,11 +5,10 @@ from pathlib import Path
 import createrepo_c as cr
 
 from rpmrepo.vendor.evr import RpmVersion
-from rpmrepo.metadata import MetadataParser
 
 
 def collect_repo_details(repo_path: Path):
-    parser = MetadataParser.from_repo(repo_path)
+    parser = cr.RepositoryReader.from_path(repo_path)
 
     data = {
         "changelog_bytes_saved": 0,

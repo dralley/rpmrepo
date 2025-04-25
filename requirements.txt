@@ -1,5 +1,5 @@
 click~=8.0
 humanfriendly>=8.0
-createrepo_c>=0.20.0
-aiohttp~=3.7
+createrepo_c>=1.2
+aiohttp~=3.8
 aiofiles~=22.1

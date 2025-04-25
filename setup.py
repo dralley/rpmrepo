@@ -9,7 +9,7 @@ setup(
     description="A library and CLI tool providing facilities for working with RPM repositories.",
     author="Daniel Alley",
     license="GPLv2",
-    python_requires=">=3.6",
+    python_requires=">=3.9",
     install_requires=requirements,
     packages=find_packages(exclude=["test"]),
     entry_points={

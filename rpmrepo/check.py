@@ -2,8 +2,7 @@ from pathlib import Path
 from collections import defaultdict
 import itertools
 
-from rpmrepo.metadata import MetadataParser
-
+import createrepo_c as cr
 
 INSECURE_CHECKSUMS = {"md5", "sha", "sha1"}
 
@@ -12,7 +11,7 @@ def check_repository_metadata(repo_path: Path, errata_check=None):
     warnings = []
     errors = []
 
-    parser = MetadataParser.from_repo(repo_path)
+    parser = cr.RepositoryReader.from_path(repo_path)
     checksum_types_used = set()
 
     packages_with_advisories = defaultdict(set)
